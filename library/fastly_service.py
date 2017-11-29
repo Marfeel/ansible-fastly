@@ -58,14 +58,14 @@ options:
         required: false
         description:
             - List of response objects
-    custom_vcl:
-        required: false
-        description:
-            - Custom VCL
     vcl_snippets:
         required: false
         description:
             - List of VCL snippets
+    upload_vcls:
+        required: false
+        description:
+            - Upload VCL
     settings:
         required: false
         description:
@@ -490,18 +490,19 @@ class FastlyResponseObject(FastlyObject):
     def sort_key(f):
         return f.name
 
-class FastlyCustomVcl(FastlyObject):
-     schema = {
+
+class FastlyVclUpload(FastlyObject):
+    schema = {
         'name': dict(required=True, type='str', default=None),
         'content': dict(required=True, type='str', default=None)
     }
-     def __init__(self, config, validate_choices):
+
+    def __init__(self, config, validate_choices):
         self.name = self.read_config(config, validate_choices, 'name')
         self.content = self.read_config(config, validate_choices, 'content')
-     def sort_key(f):
-        return f.name
 
-        
+    def sort_key(f):
+        return f.name
 
 
 class FastlyVclSnippet(FastlyObject):
@@ -550,7 +551,7 @@ class FastlyConfiguration(object):
         self.headers = []
         self.response_objects = []
         self.request_settings = []
-        self.custom_vcl = []
+        self.uploads = []
         self.snippets = []
         self.settings = FastlySettings(dict(), validate_choices)
 
@@ -594,9 +595,9 @@ class FastlyConfiguration(object):
             for response_object in configuration['response_objects']:
                 self.response_objects.append(FastlyResponseObject(response_object, validate_choices))
 
-        if 'custom_vcl' in configuration and configuration['custom_vcl'] is not None:
-            for vcl in configuration['custom_vcl']:
-                self.custom_vcl.append(FastlyCustomVcl(vcl, validate_choices))
+        if 'uploads' in configuration and configuration['uploads'] is not None:
+            for upload in configuration['uploads']:
+                self.uploads.append(FastlyVclUpload(upload, validate_choices))
 
         if 'snippets' in configuration and configuration['snippets'] is not None:
             for snippet in configuration['snippets']:
@@ -616,7 +617,7 @@ class FastlyConfiguration(object):
             and sorted(self.headers, key=FastlyHeader.sort_key) == sorted(other.headers, key=FastlyHeader.sort_key) \
             and sorted(self.request_settings, key=FastlyRequestSetting.sort_key) == sorted(other.request_settings, key=FastlyRequestSetting.sort_key) \
             and sorted(self.response_objects, key=FastlyResponseObject.sort_key) == sorted(other.response_objects, key=FastlyResponseObject.sort_key) \
-            and sorted(self.custom_vcl, key=FastlyCustomVcl.sort_key) == sorted(other.custom_vcl, key=FastlyCustomVcl.sort_key) \
+            and sorted(self.uploads, key=FastlyVclUpload.sort_key) == sorted(other.uploads, key=FastlyVclUpload.sort_key) \
             and sorted(self.snippets, key=FastlyVclSnippet.sort_key) == sorted(other.snippets, key=FastlyVclSnippet.sort_key) \
             and self.settings == other.settings
 
@@ -656,8 +657,7 @@ class FastlyClient(object):
             headers = {}
         headers.update({
             'Fastly-Key': self.fastly_api_key,
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
+            'Content-Type': 'application/json'
         })
 
         body = None
@@ -821,13 +821,13 @@ class FastlyClient(object):
             raise Exception("Error creating response object for service %s, version %s (%s)" % (
                 service_id, version, response.payload['detail']))
 
-    def custom_vcl(self, service_id, version, vcl_code):
-        response = self.request('/service/%s/version/%s/vcl' % (service_id, version), 'POST', custom_vcl)
+    def upload_custom_vcl(self, service_id, version, upload_vcl):
+        response = self._request('/service/%s/version/%s/vcl' % (service_id, version), 'POST', upload_vcl)
 
         if response.status == 200:
             return response.payload
         else:
-            raise Exception("Error uploading VCL '%s' for service %s, version %s (%s)" % (vcl_code['name'], service_id, version, response.payload['detail']))
+            raise Exception("Error uploading VCL '%s' for service %s, version %s (%s)" % (upload_vcl['name'], service_id, version, response.payload['detail']))        
 
     def create_vcl_snippet(self, service_id, version, vcl_snippet):
         response = self._request('/service/%s/version/%s/snippet' % (service_id, version), 'POST', vcl_snippet)
@@ -920,8 +920,8 @@ class FastlyStateEnforcer(object):
         for response_object in configuration.response_objects:
             self.client.create_response_object(service_id, version_number, response_object)
 
-        for custom_vcl in configuration.custom_vcl:
-            self.client.custom_vcl(service_id, version_number, response_object)
+        for upload_vcl in configuration.uploads:
+            self.client.upload_custom_vcl(service_id, version_number, upload_vcl)
 
         for vcl_snippet in configuration.snippets:
             self.client.create_vcl_snippet(service_id, version_number, vcl_snippet)
@@ -966,8 +966,8 @@ class FastlyServiceModule(object):
                 headers=dict(default=None, required=False, type='list'),
                 request_settings=dict(default=None, required=False, type='list'),
                 response_objects=dict(default=None, required=False, type='list'),
+                upload_vcls=dict(default=None, required=False, type='list'),
                 vcl_snippets=dict(default=None, required=False, type='list'),
-                custom_vcl=dict(default=None, required=False, type='list'),
                 settings=dict(default=None, required=False, type='dict'),
             ),
             supports_check_mode=False
@@ -995,8 +995,8 @@ class FastlyServiceModule(object):
                 'headers': self.module.params['headers'],
                 'request_settings': self.module.params['request_settings'],
                 'response_objects': self.module.params['response_objects'],
+                'uploads': self.module.params['upload_vcls'],
                 'snippets': self.module.params['vcl_snippets'],
-                'custom_vcl': self.module.params['custom_vcl'],
                 'settings': self.module.params['settings']
             })
         except FastlyValidationError as err:
