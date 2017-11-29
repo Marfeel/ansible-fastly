@@ -550,6 +550,7 @@ class FastlyConfiguration(object):
         self.headers = []
         self.response_objects = []
         self.request_settings = []
+        self.custom_vcl = []
         self.snippets = []
         self.settings = FastlySettings(dict(), validate_choices)
 
@@ -593,9 +594,9 @@ class FastlyConfiguration(object):
             for response_object in configuration['response_objects']:
                 self.response_objects.append(FastlyResponseObject(response_object, validate_choices))
 
-        if 'custom_vcl' in configuration and configuration['custom_vcl' is not None]:
-            for custom_vcl in configuration['custom_vcl']:
-                self.custom_vcl.append(FastlyCustomVcl(custom_vcl, validate_choices))
+        if 'custom_vcl' in configuration and configuration['custom_vcl'] is not None:
+            for vcl in configuration['custom_vcl']:
+                self.custom_vcl.append(FastlyCustomVcl(vcl, validate_choices))
 
         if 'snippets' in configuration and configuration['snippets'] is not None:
             for snippet in configuration['snippets']:
@@ -655,7 +656,8 @@ class FastlyClient(object):
             headers = {}
         headers.update({
             'Fastly-Key': self.fastly_api_key,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
         })
 
         body = None
