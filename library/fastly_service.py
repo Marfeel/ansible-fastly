@@ -495,10 +495,10 @@ class FastlyCustomVcl(FastlyObject):
         'name': dict(required=True, type='str', default=None),
         'content': dict(required=True, type='str', default=None)
     }
-    def __init__(self, config, validate_choices):
+     def __init__(self, config, validate_choices):
         self.name = self.read_config(config, validate_choices, 'name')
         self.content = self.read_config(config, validate_choices, 'content')
-    def sort_key(f):
+     def sort_key(f):
         return f.name
 
         
